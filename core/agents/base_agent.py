@@ -1,3 +1,4 @@
+# core/agents/base_agent.py
 from abc import ABC, abstractmethod
 
 class BaseAgent(ABC):
@@ -15,16 +16,16 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def train(self, experience):
-        """Train the agent using a batch of experience."""
-        pass
-
-    @abstractmethod
-    def save(self, filepath):
+    def save_model(self, filepath):
         """Save the model or agent parameters to a file."""
         pass
 
     @abstractmethod
-    def load(self, filepath):
+    def load_model(self, filepath):
         """Load the model or agent parameters from a file."""
+        pass
+
+    @abstractmethod
+    def train(self, experience):
+        """Train the agent using a batch of experience."""
         pass

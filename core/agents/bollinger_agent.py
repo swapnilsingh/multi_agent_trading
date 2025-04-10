@@ -1,42 +1,54 @@
+# core/agents/bollinger_agent.py
 import pandas as pd
 from core.agents.base_agent import BaseAgent
+from core.model_management.model_manager import ModelManager
+import joblib
 
 class BollingerAgent(BaseAgent):
-    def __init__(self, config):
+    def __init__(self, config, model_manager: ModelManager):
         super().__init__(config)
-        self.window = config.get("window", 20)
-        self.std_dev = config.get("std_dev", 2)
+        self.window = config['window']
+        self.num_std_dev = config['num_std_dev']
+        self.model_manager = model_manager
 
-    def act(self, state: pd.Series) -> int:
-        close_prices = state["close_history"]  # expects a pd.Series of recent closing prices
-        if len(close_prices) < self.window:
-            return 0  # Not enough data
+    def act(self, state):
+        close_history = pd.Series(state['close_history'])
+        
+        # Ensure we have enough data to calculate Bollinger Bands
+        if len(close_history) < self.window:
+            return 0  # Default action if not enough data
 
-        sma = close_prices.rolling(window=self.window).mean()
-        std = close_prices.rolling(window=self.window).std()
-        upper_band = sma + (self.std_dev * std)
-        lower_band = sma - (self.std_dev * std)
+        upper_band, lower_band = self.calculate_bollinger_bands(close_history)
 
-        current_price = close_prices.iloc[-1]
-        current_upper = upper_band.iloc[-1]
-        current_lower = lower_band.iloc[-1]
-
-        if current_price < current_lower:
-            return 1  # Buy
-        elif current_price > current_upper:
-            return -1  # Sell
+        # Ensure the bands have at least one value to check
+        if len(upper_band) > 0 and len(close_history) > 0:
+            action = 1 if close_history.iloc[-1] > upper_band.iloc[-1] else -1
         else:
-            return 0  # Hold
+            action = 0  # Default action if no valid data
+
+        return action
+
+    def calculate_bollinger_bands(self, close_prices):
+        rolling_mean = close_prices.rolling(window=self.window).mean()
+        rolling_std = close_prices.rolling(window=self.window).std()
+
+        upper_band = rolling_mean + (rolling_std * self.num_std_dev)
+        lower_band = rolling_mean - (rolling_std * self.num_std_dev)
+
+        return upper_band, lower_band
+
+    def save_model(self, filepath):
+        model_data = {
+            "window": self.window,
+            "num_std_dev": self.num_std_dev
+        }
+        joblib.dump(model_data, filepath)
+
+    def load_model(self, filepath):
+        model_data = joblib.load(filepath)
+        self.window = model_data["window"]
+        self.num_std_dev = model_data["num_std_dev"]
 
     def train(self, experience):
-        pass  # No training needed for rule-based agent
-
-    def save(self, filepath):
-        import pickle
-        with open(filepath, "wb") as f:
-            pickle.dump(self.config, f)
-
-    def load(self, filepath):
-        import pickle
-        with open(filepath, "rb") as f:
-            self.config = pickle.load(f)
+        # Placeholder for training logic
+        pass

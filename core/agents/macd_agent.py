@@ -1,40 +1,57 @@
+# core/agents/macd_agent.py
 import pandas as pd
 from core.agents.base_agent import BaseAgent
+from core.model_management.model_manager import ModelManager
+import joblib
 
 class MACDAgent(BaseAgent):
-    def __init__(self, config):
+    def __init__(self, config, model_manager: ModelManager):
         super().__init__(config)
-        self.fast_period = config.get("fast_period", 12)
-        self.slow_period = config.get("slow_period", 26)
-        self.signal_period = config.get("signal_period", 9)
+        self.short_period = config['short_period']
+        self.long_period = config['long_period']
+        self.signal_period = config['signal_period']
+        self.model_manager = model_manager
 
-    def act(self, state: pd.Series) -> int:
-        close_prices = state["close_history"]
-        if len(close_prices) < self.slow_period + self.signal_period:
-            return 0  # Not enough data
+    def act(self, state):
+        close_history = pd.Series(state['close_history'])
 
-        ema_fast = close_prices.ewm(span=self.fast_period, adjust=False).mean()
-        ema_slow = close_prices.ewm(span=self.slow_period, adjust=False).mean()
-        macd = ema_fast - ema_slow
-        signal = macd.ewm(span=self.signal_period, adjust=False).mean()
+        # Ensure we have enough data to calculate MACD
+        if len(close_history) < self.long_period:
+            return 0  # Default action if not enough data
 
-        # Crossover detection
-        if macd.iloc[-2] < signal.iloc[-2] and macd.iloc[-1] > signal.iloc[-1]:
-            return 1  # Buy signal
-        elif macd.iloc[-2] > signal.iloc[-2] and macd.iloc[-1] < signal.iloc[-1]:
-            return -1  # Sell signal
+        # Calculate MACD and signal
+        macd, signal, _ = self.calculate_macd(close_history)
+
+        # Ensure we have enough MACD data to access the last element
+        if len(macd) > 0 and len(signal) > 0:
+            action = 1 if macd.iloc[-1] > signal.iloc[-1] else -1
         else:
-            return 0  # Hold
+            action = 0  # Default action if no valid MACD data
+        
+        return action
+
+    def calculate_macd(self, close_prices):
+        short_ema = close_prices.ewm(span=self.short_period, adjust=False).mean()
+        long_ema = close_prices.ewm(span=self.long_period, adjust=False).mean()
+        macd = short_ema - long_ema
+        signal = macd.ewm(span=self.signal_period, adjust=False).mean()
+        hist = macd - signal
+        return macd, signal, hist
+
+    def save_model(self, filepath):
+        model_data = {
+            "short_period": self.short_period,
+            "long_period": self.long_period,
+            "signal_period": self.signal_period
+        }
+        joblib.dump(model_data, filepath)
+
+    def load_model(self, filepath):
+        model_data = joblib.load(filepath)
+        self.short_period = model_data["short_period"]
+        self.long_period = model_data["long_period"]
+        self.signal_period = model_data["signal_period"]
 
     def train(self, experience):
+        # Placeholder for training logic
         pass
-
-    def save(self, filepath):
-        import pickle
-        with open(filepath, "wb") as f:
-            pickle.dump(self.config, f)
-
-    def load(self, filepath):
-        import pickle
-        with open(filepath, "rb") as f:
-            self.config = pickle.load(f)

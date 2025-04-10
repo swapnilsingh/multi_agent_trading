@@ -1,50 +1,55 @@
+# core/agents/atr_agent.py
 import pandas as pd
 from core.agents.base_agent import BaseAgent
+from core.model_management.model_manager import ModelManager
+import joblib
 
 class ATRAgent(BaseAgent):
-    def __init__(self, config):
+    def __init__(self, config, model_manager: ModelManager):
         super().__init__(config)
-        self.window = config.get("window", 14)
-        self.multiplier = config.get("multiplier", 1.5)
+        self.window = config['window']
+        self.atr_threshold = config['atr_threshold']
+        self.model_manager = model_manager
 
-    def act(self, state: pd.Series) -> int:
-        # state must include history of highs, lows, closes
-        high = state["high_history"]
-        low = state["low_history"]
-        close = state["close_history"]
+    def act(self, state):
+        high_history = pd.Series(state['high_history'])
+        low_history = pd.Series(state['low_history'])
+        close_history = pd.Series(state['close_history'])
 
-        if len(close) < self.window + 1:
-            return 0  # Not enough data
+        # Ensure we have enough data to calculate ATR
+        if len(high_history) < self.window or len(low_history) < self.window or len(close_history) < self.window:
+            return 0  # Default action if not enough data
 
-        prev_close = close.shift(1)
+        atr = self.calculate_atr(high_history, low_history, close_history)
 
-        tr = pd.concat([
-            (high - low),
-            (high - prev_close).abs(),
-            (low - prev_close).abs()
-        ], axis=1).max(axis=1)
-
-        atr = tr.rolling(window=self.window).mean()
-        current_atr = atr.iloc[-1]
-
-        price_change = close.iloc[-1] - close.iloc[-2]
-
-        if price_change > current_atr * self.multiplier:
-            return 1  # Buy
-        elif price_change < -current_atr * self.multiplier:
-            return -1  # Sell
+        # Ensure ATR has at least one value to check
+        if len(atr) > 0:
+            action = 1 if atr.iloc[-1] > self.atr_threshold else -1
         else:
-            return 0  # Hold
+            action = 0  # Default action if no valid ATR data
+
+        return action
+
+    def calculate_atr(self, high, low, close):
+        tr = pd.concat([high - low, high - close.shift(), close.shift() - low], axis=1)
+        true_range = tr.max(axis=1)
+        atr = true_range.rolling(window=self.window).mean()
+        return atr
+
+    def save_model(self, filepath):
+        model_data = {
+            "window": self.window,
+            "atr_threshold": self.atr_threshold
+        }
+        joblib.dump(model_data, filepath)
+
+    def load_model(self, filepath):
+        model_data = joblib.load(filepath)
+        self.window = model_data["window"]
+        self.atr_threshold = model_data["atr_threshold"]
 
     def train(self, experience):
-        pass  # No training for rule-based agent
-
-    def save(self, filepath):
-        import pickle
-        with open(filepath, "wb") as f:
-            pickle.dump(self.config, f)
-
-    def load(self, filepath):
-        import pickle
-        with open(filepath, "rb") as f:
-            self.config = pickle.load(f)
+        # Placeholder for training logic
+        print("Training ATR agent...")
+        # Add your training logic here, e.g., using reinforcement learning or other methods
+        pass
