@@ -1,40 +1,26 @@
 import pandas as pd
-from core.agents.base_agent import BaseAgent
+from core.strategies.base_strategy import BaseStrategy
 
-class MACDAgent(BaseAgent):
-    def __init__(self, config):
+class MACDStrategy(BaseStrategy):
+    def __init__(self, config: dict):
         super().__init__(config)
         self.fast_period = config.get("fast_period", 12)
         self.slow_period = config.get("slow_period", 26)
         self.signal_period = config.get("signal_period", 9)
 
-    def act(self, state: pd.Series) -> int:
-        close_prices = state["close_history"]
+    def generate_signal(self, data: pd.Series) -> int:
+        close_prices = data["close_history"]
         if len(close_prices) < self.slow_period + self.signal_period:
-            return 0  # Not enough data
+            return 0
 
         ema_fast = close_prices.ewm(span=self.fast_period, adjust=False).mean()
         ema_slow = close_prices.ewm(span=self.slow_period, adjust=False).mean()
         macd = ema_fast - ema_slow
         signal = macd.ewm(span=self.signal_period, adjust=False).mean()
 
-        # Crossover detection
         if macd.iloc[-2] < signal.iloc[-2] and macd.iloc[-1] > signal.iloc[-1]:
-            return 1  # Buy signal
+            return 1  # Bullish crossover
         elif macd.iloc[-2] > signal.iloc[-2] and macd.iloc[-1] < signal.iloc[-1]:
-            return -1  # Sell signal
+            return -1  # Bearish crossover
         else:
-            return 0  # Hold
-
-    def train(self, experience):
-        pass
-
-    def save(self, filepath):
-        import pickle
-        with open(filepath, "wb") as f:
-            pickle.dump(self.config, f)
-
-    def load(self, filepath):
-        import pickle
-        with open(filepath, "rb") as f:
-            self.config = pickle.load(f)
+            return 0

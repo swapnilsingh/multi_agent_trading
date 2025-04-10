@@ -1,14 +1,30 @@
-# base_agent.py
-class BaseRLAgent:
-    def __init__(self, name):
-        self.name = name
-        self.model = None  # Replace with actual RL model
+from abc import ABC, abstractmethod
 
-    def preprocess(self, data):
-        raise NotImplementedError
+class BaseAgent(ABC):
+    """
+    Abstract base class for all trading agents.
+    All agents must implement the methods defined here.
+    """
 
-    def choose_action(self, state):
-        raise NotImplementedError
+    def __init__(self, config):
+        self.config = config
 
-    def train(self, env):
-        raise NotImplementedError
+    @abstractmethod
+    def act(self, state):
+        """Return an action given the current market state."""
+        pass
+
+    @abstractmethod
+    def train(self, experience):
+        """Train the agent using a batch of experience."""
+        pass
+
+    @abstractmethod
+    def save(self, filepath):
+        """Save the model or agent parameters to a file."""
+        pass
+
+    @abstractmethod
+    def load(self, filepath):
+        """Load the model or agent parameters from a file."""
+        pass

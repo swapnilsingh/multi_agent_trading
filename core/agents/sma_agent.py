@@ -1,20 +1,37 @@
-# agents/sma_agent.py
-class SMA_Agent:
-    def __init__(self, df, short_window=5, long_window=20):
-        self.df = df
-        self.short_window = short_window
-        self.long_window = long_window
+import pandas as pd
+from core.agents.base_agent import BaseAgent
 
-    def act(self, step):
-        if step < self.long_window:
-            return 0
-        short_sma = self.df['close'].iloc[step - self.short_window:step].mean()
-        long_sma = self.df['close'].iloc[step - self.long_window:step].mean()
+class SMAAgent(BaseAgent):
+    def __init__(self, config):
+        super().__init__(config)
+        self.short_window = config.get("short_window", 10)
+        self.long_window = config.get("long_window", 30)
 
-        if short_sma > long_sma:
-            print(f"SMA Agent: Short SMA > Long SMA ({short_sma:.2f} > {long_sma:.2f}) → BUY")
-            return 1
-        elif short_sma < long_sma:
-            print(f"SMA Agent: Short SMA < Long SMA ({short_sma:.2f} < {long_sma:.2f}) → SELL")
-            return -1
-        return 0
+    def act(self, state: pd.Series) -> int:
+        close_prices = state["close_history"]
+        if len(close_prices) < self.long_window + 1:
+            return 0  # Not enough data
+
+        short_sma = close_prices.rolling(window=self.short_window).mean()
+        long_sma = close_prices.rolling(window=self.long_window).mean()
+
+        # Detect crossover
+        if short_sma.iloc[-2] < long_sma.iloc[-2] and short_sma.iloc[-1] > long_sma.iloc[-1]:
+            return 1  # Buy
+        elif short_sma.iloc[-2] > long_sma.iloc[-2] and short_sma.iloc[-1] < long_sma.iloc[-1]:
+            return -1  # Sell
+        else:
+            return 0  # Hold
+
+    def train(self, experience):
+        pass
+
+    def save(self, filepath):
+        import pickle
+        with open(filepath, "wb") as f:
+            pickle.dump(self.config, f)
+
+    def load(self, filepath):
+        import pickle
+        with open(filepath, "rb") as f:
+            self.config = pickle.load(f)

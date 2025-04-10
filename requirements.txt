@@ -1,2 +1,16 @@
-ccxt
+# Core dependencies
 pandas
+numpy
+ccxt
+PyYAML
+
+# Logging
+loguru
+
+# Development / Optional
+jupyterlab
+ipython
+
+# (Optional: for plotting or later dashboard use)
+matplotlib
+streamlit

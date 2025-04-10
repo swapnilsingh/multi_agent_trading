@@ -1,15 +1,15 @@
 import pandas as pd
-from core.agents.base_agent import BaseAgent
+from core.strategies.base_strategy import BaseStrategy
 
-class RSIAgent(BaseAgent):
-    def __init__(self, config):
+class RSIStrategy(BaseStrategy):
+    def __init__(self, config: dict):
         super().__init__(config)
         self.period = config.get("period", 14)
         self.lower_threshold = config.get("lower_threshold", 30)
         self.upper_threshold = config.get("upper_threshold", 70)
 
-    def act(self, state: pd.Series) -> int:
-        close_prices = state["close_history"]
+    def generate_signal(self, data: pd.Series) -> int:
+        close_prices = data["close_history"]
         if len(close_prices) < self.period + 1:
             return 0
 
@@ -30,16 +30,3 @@ class RSIAgent(BaseAgent):
             return -1  # Sell
         else:
             return 0  # Hold
-
-    def train(self, experience):
-        pass
-
-    def save(self, filepath):
-        import pickle
-        with open(filepath, "wb") as f:
-            pickle.dump(self.config, f)
-
-    def load(self, filepath):
-        import pickle
-        with open(filepath, "rb") as f:
-            self.config = pickle.load(f)

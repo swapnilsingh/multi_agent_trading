@@ -1,23 +1,42 @@
-# agents/bollinger_agent.py
-class BollingerAgent:
-    def __init__(self):
-        self.name = "Bollinger"
+import pandas as pd
+from core.agents.base_agent import BaseAgent
 
-    def preprocess(self, data):
-        if len(data) < 2:
-            return 0
+class BollingerAgent(BaseAgent):
+    def __init__(self, config):
+        super().__init__(config)
+        self.window = config.get("window", 20)
+        self.std_dev = config.get("std_dev", 2)
 
-        prev = data.iloc[-2]
-        curr = data.iloc[-1]
+    def act(self, state: pd.Series) -> int:
+        close_prices = state["close_history"]  # expects a pd.Series of recent closing prices
+        if len(close_prices) < self.window:
+            return 0  # Not enough data
 
-        # Detect price crossing above lower band
-        if prev['close'] < prev['BBL_20_2.0'] and curr['close'] > curr['BBL_20_2.0']:
-            print(f"BollingerAgent: Crossed above lower band → BUY")
-            return 1
+        sma = close_prices.rolling(window=self.window).mean()
+        std = close_prices.rolling(window=self.window).std()
+        upper_band = sma + (self.std_dev * std)
+        lower_band = sma - (self.std_dev * std)
 
-        # Detect price crossing below upper band
-        if prev['close'] > prev['BBU_20_2.0'] and curr['close'] < curr['BBU_20_2.0']:
-            print(f"BollingerAgent: Crossed below upper band → SELL")
-            return -1
+        current_price = close_prices.iloc[-1]
+        current_upper = upper_band.iloc[-1]
+        current_lower = lower_band.iloc[-1]
 
-        return 0
+        if current_price < current_lower:
+            return 1  # Buy
+        elif current_price > current_upper:
+            return -1  # Sell
+        else:
+            return 0  # Hold
+
+    def train(self, experience):
+        pass  # No training needed for rule-based agent
+
+    def save(self, filepath):
+        import pickle
+        with open(filepath, "wb") as f:
+            pickle.dump(self.config, f)
+
+    def load(self, filepath):
+        import pickle
+        with open(filepath, "rb") as f:
+            self.config = pickle.load(f)
