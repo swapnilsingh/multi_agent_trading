@@ -1,2 +1,5 @@
 window: 14
-multiplier: 1.5
+atr_threshold: 1.5
+alpha: 0.1
+gamma: 0.95
+epsilon: 0.2

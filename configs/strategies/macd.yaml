@@ -1,3 +1,6 @@
-fast_period: 12
-slow_period: 26
+short_period: 12
+long_period: 26
 signal_period: 9
+alpha: 0.1
+gamma: 0.95
+epsilon: 0.2

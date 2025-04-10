@@ -10,25 +10,22 @@ class MACDAgent(BaseAgent):
         self.short_period = config['short_period']
         self.long_period = config['long_period']
         self.signal_period = config['signal_period']
+        self.required_window = self.long_period  # Longest required
         self.model_manager = model_manager
 
     def act(self, state):
         close_history = pd.Series(state['close_history'])
 
-        # Ensure we have enough data to calculate MACD
-        if len(close_history) < self.long_period:
-            return 0  # Default action if not enough data
+        if not self.has_sufficient_data(close_history):
+            print(f"[MACDAgent] Not enough data. Required: {self.required_window}, Got: {len(close_history)}")
+            return None
 
-        # Calculate MACD and signal
         macd, signal, _ = self.calculate_macd(close_history)
 
-        # Ensure we have enough MACD data to access the last element
-        if len(macd) > 0 and len(signal) > 0:
-            action = 1 if macd.iloc[-1] > signal.iloc[-1] else -1
+        if len(macd.dropna()) > 0 and len(signal.dropna()) > 0:
+            return 1 if macd.iloc[-1] > signal.iloc[-1] else -1
         else:
-            action = 0  # Default action if no valid MACD data
-        
-        return action
+            return None
 
     def calculate_macd(self, close_prices):
         short_ema = close_prices.ewm(span=self.short_period, adjust=False).mean()
@@ -37,20 +34,31 @@ class MACDAgent(BaseAgent):
         signal = macd.ewm(span=self.signal_period, adjust=False).mean()
         hist = macd - signal
         return macd, signal, hist
+    
+    def get_state_id(self, close_history):
+        close_series = pd.Series(close_history)
+        macd, signal, _ = self.calculate_macd(close_series)
+        if len(macd.dropna()) == 0 or len(signal.dropna()) == 0:
+            return "neutral"
+        diff = macd.iloc[-1] - signal.iloc[-1]
+        return f"macd_{int(diff * 100)}"
+
+
 
     def save_model(self, filepath):
-        model_data = {
+        joblib.dump({
             "short_period": self.short_period,
             "long_period": self.long_period,
             "signal_period": self.signal_period
-        }
-        joblib.dump(model_data, filepath)
+        }, filepath)
 
     def load_model(self, filepath):
         model_data = joblib.load(filepath)
         self.short_period = model_data["short_period"]
         self.long_period = model_data["long_period"]
         self.signal_period = model_data["signal_period"]
+        self.required_window = self.long_period
+
 
     def train(self, experience):
         # Placeholder for training logic

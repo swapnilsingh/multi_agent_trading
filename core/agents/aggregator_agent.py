@@ -5,23 +5,41 @@ class AggregatorAgent(BaseAgent):
     def __init__(self, agents):
         super().__init__(None)
         self.agents = agents
+        self.required_window = 0  # Aggregator doesn't compute indicators
 
     def act(self, state):
-        agent_actions = [agent.act(state) for agent in self.agents]
+        agent_actions = []
+
+        for agent in self.agents:
+            action = agent.act(state)
+            if action is not None:
+                agent_actions.append(action)
+                print(f"[Aggregator] {agent.__class__.__name__} → action: {action}")
+            else:
+                print(f"[Aggregator] {agent.__class__.__name__} → skipped (not enough data)")
+
         return self.make_final_decision(agent_actions)
 
     def make_final_decision(self, agent_actions):
-        # Example decision-making logic (you can modify this)
-        if agent_actions.count(1) > agent_actions.count(-1):
-            return 1  # Buy
+        if not agent_actions:
+            print("[Aggregator] No valid agent actions. Defaulting to HOLD (0).")
+            return 0  # HOLD
+
+        buy_votes = agent_actions.count(1)
+        sell_votes = agent_actions.count(-1)
+
+        if buy_votes > sell_votes:
+            return 1
+        elif sell_votes > buy_votes:
+            return -1
         else:
-            return -1  # Sell
+            return 0  # HOLD if tie
 
     def save_model(self, filepath):
-        pass  # No model to save for the aggregator
+        pass
 
     def load_model(self, filepath):
-        pass  # No model to load for the aggregator
+        pass
 
     def train(self, experience):
-        pass  # Aggregator doesn't require training
+        pass

@@ -1,2 +1,5 @@
 window: 20
-std_dev: 2
+num_std_dev: 2
+alpha: 0.1
+gamma: 0.95
+epsilon: 0.2

@@ -1,4 +1,5 @@
 # core/agents/base_agent.py
+
 from abc import ABC, abstractmethod
 
 class BaseAgent(ABC):
@@ -9,23 +10,29 @@ class BaseAgent(ABC):
 
     def __init__(self, config):
         self.config = config
+        self.required_window = None  # <-- add this line
+
+    def has_sufficient_data(self, data):
+        """
+        Checks if enough data is available to compute indicators.
+        Agents should call this before acting.
+        """
+        if self.required_window is None:
+            raise NotImplementedError("Subclasses must define required_window.")
+        return len(data) >= self.required_window
 
     @abstractmethod
     def act(self, state):
-        """Return an action given the current market state."""
         pass
 
     @abstractmethod
     def save_model(self, filepath):
-        """Save the model or agent parameters to a file."""
         pass
 
     @abstractmethod
     def load_model(self, filepath):
-        """Load the model or agent parameters from a file."""
         pass
 
     @abstractmethod
     def train(self, experience):
-        """Train the agent using a batch of experience."""
         pass

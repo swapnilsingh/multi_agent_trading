@@ -9,47 +9,58 @@ class ATRAgent(BaseAgent):
         super().__init__(config)
         self.window = config['window']
         self.atr_threshold = config['atr_threshold']
+        self.required_window = self.window
         self.model_manager = model_manager
 
     def act(self, state):
-        high_history = pd.Series(state['high_history'])
-        low_history = pd.Series(state['low_history'])
-        close_history = pd.Series(state['close_history'])
+        high = pd.Series(state['high_history'])
+        low = pd.Series(state['low_history'])
+        close = pd.Series(state['close_history'])
 
-        # Ensure we have enough data to calculate ATR
-        if len(high_history) < self.window or len(low_history) < self.window or len(close_history) < self.window:
-            return 0  # Default action if not enough data
+        if not all([
+            self.has_sufficient_data(high),
+            self.has_sufficient_data(low),
+            self.has_sufficient_data(close)
+        ]):
+            print(f"[ATRAgent] Not enough data. Required: {self.required_window}")
+            return None
 
-        atr = self.calculate_atr(high_history, low_history, close_history)
+        atr = self.calculate_atr(high, low, close)
 
-        # Ensure ATR has at least one value to check
-        if len(atr) > 0:
-            action = 1 if atr.iloc[-1] > self.atr_threshold else -1
-        else:
-            action = 0  # Default action if no valid ATR data
+        if len(atr.dropna()) == 0:
+            return None
 
-        return action
+        return 1 if atr.iloc[-1] > self.atr_threshold else -1
 
     def calculate_atr(self, high, low, close):
-        tr = pd.concat([high - low, high - close.shift(), close.shift() - low], axis=1)
+        tr = pd.concat([
+            high - low,
+            (high - close.shift()).abs(),
+            (low - close.shift()).abs()
+        ], axis=1)
         true_range = tr.max(axis=1)
-        atr = true_range.rolling(window=self.window).mean()
-        return atr
+        return true_range.rolling(window=self.window).mean()
+    
+    def get_state_id(self, close_history):
+        # ATR needs high/low/close, so fake it for now using close
+        series = pd.Series(close_history)
+        return f"atr_{int(series.pct_change().std() * 10000)}"
+
 
     def save_model(self, filepath):
-        model_data = {
+        joblib.dump({
             "window": self.window,
             "atr_threshold": self.atr_threshold
-        }
-        joblib.dump(model_data, filepath)
+        }, filepath)
 
     def load_model(self, filepath):
         model_data = joblib.load(filepath)
         self.window = model_data["window"]
         self.atr_threshold = model_data["atr_threshold"]
+        self.required_window = self.window
+
 
     def train(self, experience):
         # Placeholder for training logic
-        print("Training ATR agent...")
         # Add your training logic here, e.g., using reinforcement learning or other methods
         pass

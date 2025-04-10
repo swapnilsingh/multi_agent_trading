@@ -1,35 +1,55 @@
-# core/environments/multi_agent_trading_environment.py
+# core/envs/multi_agent_trading_env.py
 import pandas as pd
 
-class MultiAgentTradingEnvironment:
-    def __init__(self, market_data, agents):
-        self.market_data = market_data
-        self.agents = agents
-        self.current_step = 0
-        self.balance = 10000
-        self.trades = []
-    
+class MultiAgentTradingEnv:
+    def __init__(self, df: pd.DataFrame, window_size=50, initial_balance=1000):
+        self.df = df.reset_index(drop=True)
+        self.window_size = window_size
+        self.initial_balance = initial_balance
+        self.reset()
+
     def reset(self):
-        # Return the initial state at the beginning of the simulation
-        state = {
-            'high_history': self.market_data['high'].iloc[:self.current_step+1].values,  # Price history for high
-            'low_history': self.market_data['low'].iloc[:self.current_step+1].values,    # Price history for low
-            'close_history': self.market_data['close'].iloc[:self.current_step+1].values,  # Price history for close
-        }
-        return state
+        self.current_step = self.window_size
+        self.balance = self.initial_balance
+        self.position = 0  # +1 for long, -1 for short, 0 for neutral
+        self.entry_price = None
+        return self.df.iloc[:self.current_step]
 
-    def step(self, actions):
+    def get_current_state(self):
+        window = self.df.iloc[self.current_step - self.window_size : self.current_step]
+        return {
+            'close_history': window['Close'].tolist(),
+            'high_history': window['High'].tolist(),
+            'low_history': window['Low'].tolist(),
+        }
+
+    def execute_action(self, action):
+        current_price = self.df.iloc[self.current_step]['Close']
+        reward = 0
+
+        if action == 1:  # BUY
+            if self.position == 0:
+                self.entry_price = current_price
+                self.position = 1
+            elif self.position == -1:
+                reward = self.entry_price - current_price
+                self.balance += reward
+                self.position = 0
+                self.entry_price = None
+
+        elif action == -1:  # SELL
+            if self.position == 0:
+                self.entry_price = current_price
+                self.position = -1
+            elif self.position == 1:
+                reward = current_price - self.entry_price
+                self.balance += reward
+                self.position = 0
+                self.entry_price = None
+
         self.current_step += 1
-        
-        # Ensure state contains historical price data
-        state = {
-            'high_history': self.market_data['high'].iloc[:self.current_step+1].values,  # Update high history
-            'low_history': self.market_data['low'].iloc[:self.current_step+1].values,    # Update low history
-            'close_history': self.market_data['close'].iloc[:self.current_step+1].values,  # Update close history
-        }
+        done = self.current_step >= len(self.df)
+        return reward, done
 
-        # Define a simple placeholder reward and done flag
-        reward = 0  # Modify according to your reward logic
-        done = self.current_step >= len(self.market_data)  # Example: End if we run out of data
-        
-        return state, reward, done
+    def skip(self):
+        self.current_step += 1
