@@ -1,29 +1,29 @@
-# core/envs/multi_agent_trading_env.py
-import pandas as pd
+# core/environments/atr_trading_env.py
+import numpy as np
+from core.environments.base_trading_environment import BaseTradingEnv
 
-class MultiAgentTradingEnv:
-    def __init__(self, df: pd.DataFrame, window_size=50, initial_balance=1000):
-        self.df = df.reset_index(drop=True)
-        self.window_size = window_size
-        self.initial_balance = initial_balance
-        self.reset()
+class ATRTradingEnv(BaseTradingEnv):
+    def __init__(self, df, atr_period=14, **kwargs):
+        super().__init__(df, **kwargs)
+        self.atr_period = atr_period
 
-    def reset(self):
-        self.current_step = self.window_size
-        self.balance = self.initial_balance
-        self.position = 0  # +1 for long, -1 for short, 0 for neutral
-        self.entry_price = None
-        return self.df.iloc[:self.current_step]
-
-    def get_current_state(self):
-        window = self.df.iloc[self.current_step - self.window_size : self.current_step]
-        return {
-            'close_history': window['Close'].tolist(),
-            'high_history': window['High'].tolist(),
-            'low_history': window['Low'].tolist(),
+    def _get_state(self):
+        """
+        Returns a dict containing historical high, low, and close data
+        used by ATRAgent to calculate ATR.
+        """
+        window_data = self.df.iloc[self.current_step - self.window_size : self.current_step]
+        state = {
+            "high_history": window_data["High"].tolist(),
+            "low_history": window_data["Low"].tolist(),
+            "close_history": window_data["Close"].tolist(),
         }
+        return state
 
     def execute_action(self, action):
+        """
+        Standard buy/sell/hold execution and reward computation.
+        """
         current_price = self.df.iloc[self.current_step]['Close']
         reward = 0
 
@@ -50,6 +50,3 @@ class MultiAgentTradingEnv:
         self.current_step += 1
         done = self.current_step >= len(self.df)
         return reward, done
-
-    def skip(self):
-        self.current_step += 1

@@ -1,58 +1,64 @@
-# core/agents/atr_agent.py
-import pandas as pd
 import numpy as np
+import pandas as pd
 import joblib
 from core.agents.base_agent import BaseAgent
 from core.model_management.model_manager import ModelManager
+from core.indicators.atr import calculate_atr
 
 class ATRAgent(BaseAgent):
     def __init__(self, config, model_manager: ModelManager):
-        super().__init__(config)
-        self.window = config['window']
-        self.atr_threshold = config['atr_threshold']
+        super().__init__(config, model_manager)
+        self.atr_period = config['atr_period']
         self.alpha = config.get("alpha", 0.1)
         self.gamma = config.get("gamma", 0.95)
         self.epsilon = config.get("epsilon", 0.2)
         self.model_manager = model_manager
 
-        self.required_window = self.window
-        self.q_table = {}  # state_id -> [q_sell, q_hold, q_buy]
+        self.required_window = self.atr_period + 1
+        self.q_table = {}
+        self.state_action_counter = {}
 
     def act(self, state):
-        high = pd.Series(state['high_history'])
-        low = pd.Series(state['low_history'])
-        close = pd.Series(state['close_history'])
+        try:
+            high = state.get('high_history', [])
+            low = state.get('low_history', [])
+            close = state.get('close_history', [])
 
-        if not self.has_sufficient_data(close):
-            return None
+            if not self.has_sufficient_data(high) or not self.has_sufficient_data(low) or not self.has_sufficient_data(close):
+                return 0
 
-        atr = self.calculate_atr(high, low, close)
-        if len(atr) == 0:
-            return None
+            atr = self.calculate_atr(high, low, close)
+            state_id = self.get_state_id(atr)
 
-        current_atr = atr.iloc[-1]
-        state_id = self.get_state_id(current_atr)
+            if state_id not in self.q_table:
+                self.q_table[state_id] = [0, 0, 0]
 
-        if state_id not in self.q_table:
-            self.q_table[state_id] = [0, 0, 0]
+            if np.random.rand() < self.epsilon:
+                action = np.random.choice([-1, 0, 1])
+            else:
+                action_index = int(np.argmax(self.q_table[state_id]))
+                action = [-1, 0, 1][action_index]
 
-        if np.random.rand() < self.epsilon:
-            return np.random.choice([-1, 0, 1])
+            key = (state_id, action)
+            self.state_action_counter[key] = self.state_action_counter.get(key, 0) + 1
 
-        action_index = int(np.argmax(self.q_table[state_id]))
-        return [-1, 0, 1][action_index]
+            return action
+
+        except Exception as e:
+            print(f"[{self.name}] ⚠️ Error during training step: {e}")
+            return 0
 
     def get_state_id(self, atr_value):
-        if isinstance(atr_value, list):
-            atr_value = atr_value[-1]
-        return f"atr_{int(float(atr_value) * 100)}"
+        try:
+            bucket = int(float(atr_value) // 5) * 5  # Bucket to nearest lower multiple of 5
+            return f"atr_{bucket}"
+        except Exception as e:
+            print(f"[{self.name}] Error computing state_id: {e}")
+            return "atr_error"
 
-    def train(self, experience):
-        state_id, action, reward, next_state_id = experience
-
+    def learn(self, state_id, action, reward, next_state_id):
         if state_id not in self.q_table:
             self.q_table[state_id] = [0, 0, 0]
-
         if next_state_id not in self.q_table:
             self.q_table[next_state_id] = [0, 0, 0]
 
@@ -62,24 +68,26 @@ class ATRAgent(BaseAgent):
         new_q = old_q + self.alpha * (reward + self.gamma * next_max_q - old_q)
         self.q_table[state_id][action_index] = new_q
 
-    def calculate_atr(self, high, low, close):
-        tr = pd.concat([
-            high - low,
-            (high - close.shift()).abs(),
-            (close.shift() - low).abs()
-        ], axis=1).max(axis=1)
-        return tr.rolling(window=self.window).mean()
+    def calculate_atr(self, high_prices, low_prices, close_prices):
+        if not self.has_sufficient_data(high_prices) or not self.has_sufficient_data(low_prices) or not self.has_sufficient_data(close_prices):
+            return 0.0
+        high_series = pd.Series(high_prices)
+        low_series = pd.Series(low_prices)
+        close_series = pd.Series(close_prices)
+        atr_values = calculate_atr(high_series, low_series, close_series, window=self.atr_period)
+        atr_value = atr_values.iloc[-1]
+        if pd.isna(atr_value):
+            return 0.0
+        return float(atr_value)
 
     def save_model(self, filepath):
         joblib.dump({
-            "window": self.window,
-            "atr_threshold": self.atr_threshold,
+            "atr_period": self.atr_period,
             "q_table": self.q_table
         }, filepath)
 
     def load_model(self, filepath):
         data = joblib.load(filepath)
-        self.window = data["window"]
-        self.atr_threshold = data["atr_threshold"]
+        self.atr_period = data["atr_period"]
         self.q_table = data.get("q_table", {})
-        self.required_window = self.window
+        self.required_window = self.atr_period + 1

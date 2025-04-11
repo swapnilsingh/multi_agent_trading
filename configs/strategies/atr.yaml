@@ -1,5 +1,6 @@
-window: 14
+atr_period: 14
 atr_threshold: 1.5
 alpha: 0.1
 gamma: 0.95
 epsilon: 0.2
+model_name: ATRAgent

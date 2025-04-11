@@ -1,0 +1,6 @@
+short_window: 10
+long_window: 30
+alpha: 0.1
+gamma: 0.95
+epsilon: 0.2
+model_name: SMA_10_30

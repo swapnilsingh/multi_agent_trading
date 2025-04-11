@@ -4,3 +4,4 @@ signal_period: 9
 alpha: 0.1
 gamma: 0.95
 epsilon: 0.2
+model_name: MACDAgent

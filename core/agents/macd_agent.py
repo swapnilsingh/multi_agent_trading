@@ -1,58 +1,62 @@
 # core/agents/macd_agent.py
 import pandas as pd
 import joblib
+import numpy as np
 from core.agents.base_agent import BaseAgent
 from core.model_management.model_manager import ModelManager
 
 class MACDAgent(BaseAgent):
     def __init__(self, config, model_manager: ModelManager):
-        super().__init__(config)
+        super().__init__(config, model_manager)
         self.short_period = config['short_period']
         self.long_period = config['long_period']
         self.signal_period = config['signal_period']
         self.alpha = config.get("alpha", 0.1)
         self.gamma = config.get("gamma", 0.95)
         self.epsilon = config.get("epsilon", 0.2)
+        self.required_window = self.long_period + self.signal_period
+        self.q_table = {}
         self.model_manager = model_manager
 
-        self.required_window = self.long_period + self.signal_period
-        self.q_table = {}  # state_id -> [q_sell, q_hold, q_buy]
-
     def act(self, state):
-        close_history = pd.Series(state['close_history'])
+        close_prices = pd.Series(state.get("close_history", []))
+        if len(close_prices) < self.required_window:
+            return 0  # hold
 
-        if not self.has_sufficient_data(close_history):
-            return None
+        macd, signal, _ = self.calculate_macd(close_prices)
+        macd_val = macd.iloc[-1] if not macd.empty else 0
+        signal_val = signal.iloc[-1] if not signal.empty else 0
 
-        macd, signal, hist = self.calculate_macd(close_history)
-        macd_delta = macd.iloc[-1] - signal.iloc[-1] if len(macd) > 0 and len(signal) > 0 else 0
-        state_id = self.get_state_id(macd_delta)
+        state_dict = {"macd": macd_val, "signal_line": signal_val}
+        state_id = self.get_state_id(state_dict)
 
         if state_id not in self.q_table:
-            self.q_table[state_id] = [0, 0, 0]  # sell, hold, buy
+            self.q_table[state_id] = [0, 0, 0]
 
-        import numpy as np
         if np.random.rand() < self.epsilon:
             return np.random.choice([-1, 0, 1])
 
         action_index = int(np.argmax(self.q_table[state_id]))
         return [-1, 0, 1][action_index]
 
-    def get_state_id(self, macd_delta):
-        if isinstance(macd_delta, list):
-            macd_delta = macd_delta[-1]  # in case it's a list
-        return f"macd_{int(float(macd_delta) * 100)}"
+    def get_state_id(self, state):
+        try:
+            macd_val = float(state.get("macd", 0))
+            signal_val = float(state.get("signal_line", 0))
+            macd_delta = macd_val - signal_val
+            return f"macd_{int(macd_delta * 100)}"
+        except Exception as e:
+            print(f"[{self.name}] Error computing state_id: {e}")
+            return "macd_error"
 
-    def train(self, experience):
-        state_id, action, reward, next_state_id = experience
-
+    def learn(self, state_id, action, reward, next_state_id):
         if state_id not in self.q_table:
             self.q_table[state_id] = [0, 0, 0]
 
         if next_state_id not in self.q_table:
             self.q_table[next_state_id] = [0, 0, 0]
 
-        action_index = action + 1  # -1=>0, 0=>1, 1=>2
+        action_index = action + 1
         old_q = self.q_table[state_id][action_index]
         next_max_q = max(self.q_table[next_state_id])
         new_q = old_q + self.alpha * (reward + self.gamma * next_max_q - old_q)
