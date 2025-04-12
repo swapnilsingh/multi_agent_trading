@@ -18,7 +18,17 @@ class RSIAgent(BaseAgent):
         self.epsilon = config.get('epsilon', 0.2)
         self.state_action_counter = {}  # (state_id, action) -> count
 
-    def act(self, state_id):
+    def act(self, state):
+        close_history = state.get("close_history", [])
+
+        # Flatten if needed
+        if isinstance(close_history[0], list):
+            close_history = [x[0] for x in close_history]
+
+        close_series = pd.Series(close_history, dtype='float64')
+        rsi = self.calculate_rsi(close_series)
+        state_id = str(rsi // 10)
+
         if state_id not in self.q_table:
             self.q_table[state_id] = [0, 0, 0]
 
@@ -30,7 +40,9 @@ class RSIAgent(BaseAgent):
 
         key = (state_id, action)
         self.state_action_counter[key] = self.state_action_counter.get(key, 0) + 1
+
         return action
+
 
     def learn(self, state_id, action, reward, next_state_id):
         if state_id not in self.q_table:
