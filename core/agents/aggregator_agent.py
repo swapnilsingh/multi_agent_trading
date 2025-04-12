@@ -2,10 +2,10 @@
 from core.agents.base_agent import BaseAgent
 
 class AggregatorAgent(BaseAgent):
-    def __init__(self, agents):
-        super().__init__(None)
+    def __init__(self, agents, model_manager):
+        super().__init__({}, model_manager)  # no config needed for aggregator
         self.agents = agents
-        self.required_window = 0  # Aggregator doesn't compute indicators
+        self.required_window = 0  # Aggregator doesn’t need data window
 
     def act(self, state):
         agent_actions = []
@@ -43,3 +43,16 @@ class AggregatorAgent(BaseAgent):
 
     def train(self, experience):
         pass
+
+    def learn(self, *args, **kwargs):  # ✅ added to fulfill abstract method requirement
+        pass
+
+    def vote_from_actions(self, action_dict):
+        """
+        Accepts a dictionary of actions from individual agents and returns the majority vote.
+        """
+        print("[Aggregator] Received agent actions:")
+        for name, action in action_dict.items():
+            print(f"    → {name.upper()}: {action}")
+        return self.make_final_decision(list(action_dict.values()))
+

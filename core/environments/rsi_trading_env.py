@@ -13,7 +13,7 @@ class RSITRadingEnv(BaseTradingEnv):
         """
         Retrieve the current state, which includes RSI.
         """
-        close_prices = self.df.iloc[self.current_step - self.window_size: self.current_step]['Close'].values
+        close_prices = self.df.iloc[self.current_step - self.window_size: self.current_step]['close'].values
         rsi = self._calculate_rsi(close_prices)
         state = {
             "close_history": close_prices.tolist(),

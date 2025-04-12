@@ -14,9 +14,9 @@ class ATRTradingEnv(BaseTradingEnv):
         """
         window_data = self.df.iloc[self.current_step - self.window_size : self.current_step]
         state = {
-            "high_history": window_data["High"].tolist(),
-            "low_history": window_data["Low"].tolist(),
-            "close_history": window_data["Close"].tolist(),
+            "high_history": window_data["high"].tolist(),
+            "low_history": window_data["low"].tolist(),
+            "close_history": window_data["close"].tolist(),
         }
         return state
 
@@ -24,7 +24,7 @@ class ATRTradingEnv(BaseTradingEnv):
         """
         Standard buy/sell/hold execution and reward computation.
         """
-        current_price = self.df.iloc[self.current_step]['Close']
+        current_price = self.df.iloc[self.current_step]['close']
         reward = 0
 
         if action == 1:  # BUY

@@ -34,10 +34,11 @@ class BaseTradingEnv:
         """
         window = self.df.iloc[self.current_step - self.window_size : self.current_step]
         return {
-            'close_history': window['Close'].tolist(),
-            'high_history': window['High'].tolist(),
-            'low_history': window['Low'].tolist(),
+            'close_history': window['close'].tolist(),
+            'high_history': window['high'].tolist(),
+            'low_history': window['low'].tolist(),
         }
+        
     
     def get_current_state(self):
         return self._get_state()
@@ -49,7 +50,7 @@ class BaseTradingEnv:
         :param action: Action to be executed (1 for buy, -1 for sell, 0 for hold)
         :return: A tuple containing the reward and whether the episode is finished.
         """
-        current_price = self.df.iloc[self.current_step]['Close']
+        current_price = self.df.iloc[self.current_step]['close']
         reward = 0
 
         if action == 1:  # BUY

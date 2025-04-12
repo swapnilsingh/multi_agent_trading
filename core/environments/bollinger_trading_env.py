@@ -43,7 +43,7 @@ class BollingerTradingEnv(BaseTradingEnv):
         """
         Overriding the base method to add the logic for Bollinger Bands strategy.
         """
-        current_price = self.df.iloc[self.current_step]['Close']
+        current_price = self.df.iloc[self.current_step]['close']
         reward = 0
 
         # If action is buy (1), sell (-1), or hold (0), execute the trade
